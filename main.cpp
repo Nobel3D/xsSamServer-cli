@@ -1,72 +1,42 @@
-#include <QDebug>
-#include <iostream>
 #include <unistd.h>
 #include <xsSamServer/xssamserver.h>
 #include <xslib/xslib.h>
 
-#define CERROR(check, text) { if(check) { qWarning() << "[ERR] " << text << endl; \
-                                          return -1; }                      }
-
-#define OK 0
-
-#define endl "\n"
-
-using namespace std;
-
-QString sysApp;
-QString netAddress;
-QString netPasswd;
-QString netPort;
-
-Rcon* rcClient;
-Fetch* input;
-
-QString inputBuffer;
+xsSamServer* sam;
+QString buffer;
 
 void connect()
 {
+    QString address, port;
     xsConsole() << "Serious Manager " << " by Luca \"Nobel3D\" Gasperini" << endl
                 << "Enter your server ip -> ";
-    xsConsole() >> netAddress;
+    xsConsole() >> address;
     xsConsole() << "Enter your server port ->";
-    xsConsole() >> netPort;
+    xsConsole() >> port;
 
-    xsConsole() << "Trying to connect: " << netAddress << "\n";
-    rcClient = new Rcon;
-    if(rcClient->Connect(netAddress, netPort.toInt()) != 0)
-        return;
-}
-void login()
-{
+    xsConsole() << "Trying to connect: " << address << "\n";
+    sam = new xsSamServer(address,port.toInt());
+    sam->Connect();
+    do {
     xsConsole() << "Login -> ";
-    if(rcClient->Login(xsConsole::ReadPasswd()) != 0)
-        return;
-    xsConsole() << endl;
-}
-
-void start()
-{
-    input = new Fetch(rcClient);
-    input->start();
-
-    while(inputBuffer != "quit")
-    {
-        sleep(1);
-        if(input->flag == 1)
-        {
-            xsConsole() << input->strData;
-            xsConsole() << "[" << rcClient->getAddress() << ":" << rcClient->getPort() << "]$ ";
-        }
-        xsConsole() >> inputBuffer;
-        rcClient->WriteStream(inputBuffer);
-    }
-    rcClient->Close();
+    } while(sam->Login(xsConsole::ReadPasswd()) == FAIL);
 }
 
 int main(int argc, char **argv)
 {
+
     connect();
-    login();
-    start();
+    sam->Start();
+
+    while(true)
+    {
+        buffer = xsConsole::Shell(sam->server->getAddress(), sam->server->getPort());
+        if(buffer == "quit")
+            break;
+        sam->server->WriteStream(buffer);
+        sleep(1);
+        xsConsole() << sam->input->strData;
+    }
+    sam->server->Close();
     return 0;
 }
